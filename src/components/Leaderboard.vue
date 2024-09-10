@@ -6,7 +6,7 @@ import Chart from "./Chart.vue";
 
 //url to get the most recent data from
 
-const url = `http://pbx4199.dialninja.com/dash/?api_key=`;
+const url = `https://pbx4199.dialninja.com/dash/?api_key=`;
 const apiKey = "dbb95f8f-da53-418c-bb41-ee0611539cb3";
 
 const mostUpdatedData = ref([]);
