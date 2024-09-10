@@ -1,10 +1,18 @@
 <script setup>
 import { ref, computed, reactive, watch, Teleport, onMounted } from "vue";
+import axios from "axios";
 import { csvParse } from "d3-dsv";
 import Chart from "./Chart.vue";
 
+//url to get the most recent data from
+
+const url = `http://pbx4199.dialninja.com/dash/?api_key=`;
+const apiKey = "dbb95f8f-da53-418c-bb41-ee0611539cb3";
+
+const mostUpdatedData = ref([]);
+
 const showSidebarModal = ref(false);
-const showUploadModal = ref(true);
+const showUploadModal = ref(false);
 
 const fileInput = ref(null); // the file object
 const fileName = ref(""); // the name of the csv file
@@ -19,8 +27,60 @@ const spiffTodayHovered = ref(false); // Hover state for showing delete button
 const debt_goal = ref(JSON.parse(localStorage.getItem("debtGoal")) || 100000); // Goal for the week
 const refreshData = ref(false);
 const timeRangePeriod = ref("week");
+const interval_is_running = ref(false);
 
-//get unique array of all sales reps names
+const enabledBlocks = ref([
+  "enrolled_debt_today",
+  "enrolled_today",
+  "debt_goal",
+  "enrolled_debt_week",
+  "enrolled_week",
+  "average_",
+]);
+
+// function that uses axios get request to get the data from the url
+const getData = async () => {
+  try {
+    const response = await axios.get(`${url}${apiKey}`);
+
+    mostUpdatedData.value = response.data;
+
+    console.log("RETURNED DATA", mostUpdatedData.value);
+
+    data.value = mostUpdatedData.value;
+
+    sumDebtsBetweenStartAndEndDates();
+
+    resetData(data.value);
+
+    showUploadModal.value = false;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+let theInterval = null;
+
+const updateData = (toggleInterval) => {
+  if (toggleInterval) {
+    interval_is_running.value = true;
+    getData(); // Run getData immediately
+
+    theInterval = setInterval(() => {
+      getData(); //get the data on an interval
+    }, 300000); // 5 minutes in milliseconds
+    console.log("Interval Started");
+  } else {
+    interval_is_running.value = false;
+
+    if (theInterval) {
+      // Check if the interval is running
+      clearInterval(theInterval); // Clear the interval
+      theInterval = null; // Reset the interval variable to avoid clearing it again
+      console.log("Interval Stopped");
+    }
+  }
+};
 
 //returns the startDate of the week based on the current day - will always be monday
 const startDate = computed(() => {
@@ -63,6 +123,8 @@ const endDate = computed(() => {
     return "Invalid time range period";
   }
 });
+
+// axios post
 
 //computed function that looks into the data array and returns a new array of unique sales reps in the order of their Debt Amount sum greatest to least
 const salesReps = computed(() => {
@@ -164,17 +226,28 @@ const toggleSidebarModal = () => {
   showSidebarModal.value = !showSidebarModal.value;
 };
 
-const resetData = () => {
-  const tmp_data = data.value;
-  const tmp_fileName = fileName.value;
+const resetData = (newData) => {
+  if (!newData) {
+    let tmp_data = [];
+    let tmp_fileName = "";
 
-  data.value = [];
-  fileName.value = "";
+    tmp_data = data.value;
+    tmp_fileName = fileName.value;
 
-  setTimeout(() => {
-    data.value = tmp_data;
-    fileName.value = tmp_fileName;
-  }, 1000);
+    data.value = [];
+    fileName.value = "";
+
+    setTimeout(() => {
+      data.value = tmp_data;
+      fileName.value = tmp_fileName;
+    }, 1000);
+  } else {
+    data.value = [];
+
+    setTimeout(() => {
+      data.value = newData;
+    }, 1000);
+  }
 };
 
 //chart options for goal chart
@@ -319,6 +392,8 @@ const handleFiles = (event) => {
     // Parse CSV text into JSON
     fileName.value = file.name;
     const jsonData = csvParse(csvText);
+
+    console.log("JSON Data:", jsonData);
     data.value = trimPropertyNames(jsonData);
 
     sumDebtsBetweenStartAndEndDates();
@@ -588,7 +663,7 @@ const wipeLocalStorage = () => {
 };
 
 //onMounted setting a few variables
-onMounted(() => {
+onMounted(async () => {
   today.value = todaysDate.value;
   start.value = startDate.value;
   end.value = endDate.value;
@@ -596,6 +671,9 @@ onMounted(() => {
   console.log("Today: ", today.value);
   console.log("Start: ", start.value);
   console.log("End: ", end.value);
+
+  //begin the interval to pull the updated data
+  // await updateData();
 });
 
 //watch the timeRangePeriod and run resetData function
@@ -723,6 +801,25 @@ watch(timeRangePeriod, () => {
                     v-model.number="debt_goal"
                     class="input input-sm rounded bg-gray-100 text-slate-600"
                   />
+                </div>
+
+                <div class="col-span-4 flex flex-col gap-3">
+                  <div class="flex flex-col gap-3 items-start">
+                    <!-- a checkbox input -->
+                    <label for="timeRangePeriod">Hide / Show Blocks</label>
+                    <!-- checkbox -->
+                    <div class="flex flex-row gap-3">
+                      <input
+                        type="checkbox"
+                        id="average-program-legnth"
+                        v-model="enabledBlocks"
+                        value="average_program_length"
+                      />
+                      <label for="average-program-length"
+                        >Average Program Length</label
+                      >
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -875,6 +972,20 @@ watch(timeRangePeriod, () => {
 
       <div class="ml-auto flex flex-row items-center gap-2">
         <button
+          @click="interval_is_running ? updateData(false) : updateData(true)"
+          title="Upload a CSV file"
+          :class="
+            interval_is_running
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-emerald-500 hover:bg-emerald-600'
+          "
+          class="btn bg-blue-500 text-gray-100"
+        >
+          <font-awesome-icon
+            :icon="['fas', interval_is_running ? 'pause' : 'play']"
+          />
+        </button>
+        <button
           v-if="data.length < 1"
           @click="toggleUploadModal"
           title="Upload a CSV file"
@@ -884,7 +995,7 @@ watch(timeRangePeriod, () => {
         </button>
 
         <button
-          v-if="data.length > 0"
+          v-if="data.length > 0 && !interval_is_running"
           @click="wipeData"
           title="Wipe the CSV Data"
           class="btn text-gray-100 bg-red-500 hover:bg-red-700"
@@ -1069,6 +1180,7 @@ watch(timeRangePeriod, () => {
               </div>
             </div>
             <div
+              v-show="enabledBlocks.includes('average_program_length')"
               class="flex-1 bg-base-100 border border-slate-400 rounded flex flex-col p-2"
             >
               <div class="text-gray-100 text-xl">
@@ -1150,7 +1262,13 @@ watch(timeRangePeriod, () => {
                     <tr>
                       <th>Program Consultant</th>
                       <th>Client Name</th>
-                      <th>Term</th>
+                      <th
+                        v-show="
+                          enabledBlocks.includes('average_program_length')
+                        "
+                      >
+                        Term
+                      </th>
                       <th>Total Debt</th>
                     </tr>
                   </thead>
@@ -1159,7 +1277,13 @@ watch(timeRangePeriod, () => {
                     <tr v-for="(item, i) in newClientsToday" :key="i">
                       <td>{{ item["Sales User"] }}</td>
                       <th>{{ item["Customer Name"] }}</th>
-                      <td>{{ item["Term"] }}</td>
+                      <td
+                        v-show="
+                          enabledBlocks.includes('average_program_length')
+                        "
+                      >
+                        {{ item["Term"] }}
+                      </td>
                       <td>{{ item["Debt Amount"] }}</td>
                     </tr>
                   </tbody>
