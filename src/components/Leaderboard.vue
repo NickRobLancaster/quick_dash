@@ -40,12 +40,16 @@ const enabledBlocks = ref([
 
 // function that uses axios get request to get the data from the url
 const getData = async () => {
+  today.value = getTodaysDate();
+
+  console.log("LAST DATE CHECKED: ", today.value);
+
   try {
     const response = await axios.get(`${url}${apiKey}`);
 
     mostUpdatedData.value = response.data;
 
-    console.log("RETURNED DATA", mostUpdatedData.value);
+    console.table(mostUpdatedData.value);
 
     data.value = mostUpdatedData.value;
 
@@ -61,15 +65,15 @@ const getData = async () => {
 
 let theInterval = null;
 
-const updateData = (toggleInterval) => {
+const updateData = async (toggleInterval) => {
   if (toggleInterval) {
     interval_is_running.value = true;
-    getData(); // Run getData immediately
+    await getData(); // Run getData immediately
 
     theInterval = setInterval(() => {
       getData(); //get the data on an interval
-    }, 300000); // 5 minutes in milliseconds
-    console.log("Interval Started");
+    }, 10000); // 5 minutes in milliseconds
+    // console.log("Interval Started");
   } else {
     interval_is_running.value = false;
 
@@ -428,14 +432,16 @@ const wipeData = () => {
 };
 
 //computed function to return todays date in the format the csv file uses
-const todaysDate = computed(() => {
+const getTodaysDate = () => {
   const today = new Date();
   const month = today.getMonth() + 1; // January is 0!
   const day = today.getDate();
   const year = today.getFullYear();
 
-  return `${month}/${day}/${year}`;
-});
+  const finalDateFormat = `${month}/${day}/${year}`;
+
+  return finalDateFormat;
+};
 
 //cleans the csv headers and trims the whitespace on keys
 const trimPropertyNames = (arr) => {
@@ -480,7 +486,7 @@ const sumDebtsBetweenStartAndEndDates = () => {
     }, 0)
     .toFixed(2); // Sum the amounts, then format to 2 decimal places
 
-  console.log("SUM OF DEBTS FOR WEEK", sumOfDebtsForWeek);
+  // console.log("SUM OF DEBTS FOR WEEK", sumOfDebtsForWeek);
 
   totalDebtWeek.value = [sumOfDebtsForWeek];
 };
@@ -508,7 +514,7 @@ const averageDebtAmount = computed(() => {
 
 //gets the total client that enrolled today from the "Enrolled Date" key on the objects in the data array
 const clientsEnrolledToday = computed(() => {
-  return data.value.filter((item) => item["Enrolled Date"] === todaysDate.value)
+  return data.value.filter((item) => item["Enrolled Date"] === today.value)
     .length;
 });
 
@@ -664,13 +670,18 @@ const wipeLocalStorage = () => {
 
 //onMounted setting a few variables
 onMounted(async () => {
-  today.value = todaysDate.value;
+  today.value = getTodaysDate();
   start.value = startDate.value;
   end.value = endDate.value;
 
-  console.log("Today: ", today.value);
-  console.log("Start: ", start.value);
-  console.log("End: ", end.value);
+  console.log(
+    "START: ",
+    start.value,
+    " | TODAY: ",
+    today.value,
+    " | End: ",
+    end.value
+  );
 
   //begin the interval to pull the updated data
   // await updateData();
@@ -1118,7 +1129,7 @@ watch(timeRangePeriod, () => {
               <div
                 class="flex-1 flex flex-col justify-center items-center text-4xl text-blue-400"
               >
-                {{ sumDebtsOnDate(todaysDate) }}
+                {{ sumDebtsOnDate(today) }}
               </div>
             </div>
             <div
