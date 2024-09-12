@@ -72,7 +72,7 @@ const updateData = async (toggleInterval) => {
 
     theInterval = setInterval(() => {
       getData(); //get the data on an interval
-    }, 10000); // 5 minutes in milliseconds
+    }, 300000); // 5 minutes in milliseconds
     // console.log("Interval Started");
   } else {
     interval_is_running.value = false;
